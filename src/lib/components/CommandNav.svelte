@@ -9,7 +9,7 @@
     { label: 'Rosters', href: '/rosters' },
     { label: 'Drafts', href: '/drafts' },
     { label: 'Records', href: '/records' },
-    { label: 'Trades', href: '/trades' }
+    { label: 'Trades', href: '/transactions?show=trade&query=&page=1' }
   ];
 </script>
 
