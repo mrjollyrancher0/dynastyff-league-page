@@ -7,10 +7,10 @@ export const enableBlog = false; // requires VITE_CONTENTFUL_ACCESS_TOKEN and VI
 
 /*   STEP 2   */
 export const homepageText = `
-  <p>Welcome to Arnie's Dynasty, where championships are earned, rivalries run deep, and legacies are built to last. This isn't your average fantasy football league—every draft pick, blockbuster trade, and </p>
-  <p>questionable lineup decision can shape the future of a franchise for years to come. Whether you're building a dynasty, chasing your first championship, or desperately trying to escape a rebuild,</p>
-  <p>one thing is certain: the competition never ends. Here, bragging rights are everything, excuses mean nothing, and mediocrity is remembered. Every manager has the same opportunity to build a contender,</p>
-  <p>but only those willing to outdraft, outtrade, and outsmart the competition will rise to the top.</p>
+  <p>Welcome to Arnie's Dynasty, where championships are earned, rivalries run deep, and legacies are built to last. This isn't your average fantasy football league—every draft pick, blockbuster trade, and 
+  questionable lineup decision can shape the future of a franchise for years to come. Whether you're building a dynasty, chasing your first championship, or desperately trying to escape a rebuild,
+  one thing is certain: the competition never ends. Here, bragging rights are everything, excuses mean nothing, and mediocrity is remembered. Every manager has the same opportunity to build a contender,
+  but only those willing to outdraft, outtrade, and outsmart the competition will rise to the top.</p>
 
 `;
 
