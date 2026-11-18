@@ -9,6 +9,7 @@ import { getManagers, round, sortHighAndLow } from './universalFunctions';
 import { Records } from '$lib/utils/dataClasses';
 import { getBrackets } from './leagueBrackets';
 import { browser } from '$app/environment';
+import { isFreshRecordCache, isUsableWeeklyScore, getChampionshipEntrants, sumCompletedPlayoffPoints } from './recordsIntegrity';
 
 /**
  * getLeagueRecords obtains all the record for a league since it was first created
@@ -17,21 +18,17 @@ import { browser } from '$app/environment';
  */
 export const getLeagueRecords = async (refresh = false) => {
 	// Bump the version whenever calculation rules change to discard obsolete records.
-	const cacheKey = 'records:v2:' + leagueID;
+	const cacheKey = 'records:v3:' + leagueID;
 	const cacheMaxAge = 15 * 60 * 1000;
 	const memoryRecords = get(records);
-	if (!refresh && memoryRecords?.regularSeasonData && memoryRecords?.playoffData
-		&& Number.isFinite(memoryRecords.generatedAt)
-		&& Date.now() - memoryRecords.generatedAt < cacheMaxAge) {
+	if (!refresh && isFreshRecordCache(memoryRecords, Date.now(), cacheMaxAge)) {
 		return memoryRecords;
 	}
 
 	if (!refresh && browser) {
 		try {
 			const cached = JSON.parse(localStorage.getItem(cacheKey));
-			if (cached?.regularSeasonData && cached?.playoffData
-				&& Number.isFinite(cached.generatedAt)
-				&& Date.now() - cached.generatedAt < cacheMaxAge) {
+			if (isFreshRecordCache(cached, Date.now(), cacheMaxAge)) {
 				records.set(cached);
 				return cached;
 			}
@@ -287,7 +284,7 @@ const processMatchups = ({matchupWeek, seasonPointsRecord, record, startWeek, ma
 	for(const matchup of matchupWeek) {
         // exit if there's no roster ID
         const rosterID = matchup.roster_id;
-        if(!rosterID) continue;
+        if(rosterID == null) continue;
 
         let mID = matchup.matchup_id;
 
@@ -315,9 +312,8 @@ const processMatchups = ({matchupWeek, seasonPointsRecord, record, startWeek, ma
         }
         
         // Missing scores are not eligible for single-week record rankings.
+        if (!isUsableWeeklyScore(matchup)) continue;
         const points = Number(matchup.points);
-        if (matchup.points == null || !Number.isFinite(points)) continue;
-        if (points === 0 && !Array.isArray(matchup.starters_points) && !matchup.m) continue;
 
         const entry = {
             rosterID,
@@ -391,7 +387,7 @@ const processPlayoffs = async ({curSeason, playoffRecords, year, week, rosters})
         champs,
     } = await getBrackets(curSeason);
 
-	if(week <= playoffsStart || !year) {
+	if(week < playoffsStart || !year) {
 		return null;
 	}
 
@@ -417,14 +413,7 @@ const processPlayoffs = async ({curSeason, playoffRecords, year, week, rosters})
 
 	// A playoff appearance means entering the championship bracket,
 	// not playing a consolation-only matchup.
-	const playoffEntrants = new Set();
-	for (const round of champs.bracket) {
-		for (const pairing of round) {
-			for (const team of pairing) {
-				if (team.roster_id != null) playoffEntrants.add(String(team.roster_id));
-			}
-		}
-	}
+	const playoffEntrants = getChampionshipEntrants(champs.bracket);
 
 	for(const rosterID in postSeasonData) {
 		const pSD = postSeasonData[rosterID];
@@ -482,10 +471,8 @@ const digestBracket = ({bracket, playoffRecords, playoffRounds, matchupDifferent
 			for(const matchup of matchups) {
 				if(matchup.r) {
 					const newMatchup = {...matchup}
-					let points = 0;
-					for(const k in newMatchup.points) {
-						points += newMatchup.points[k].reduce((t, nV) => t + nV, 0);
-					}
+					const points = sumCompletedPlayoffPoints(newMatchup.points);
+					if (points == null) continue;
 					newMatchup.points = points;
 					matchupWeek.push(newMatchup);
 				}
