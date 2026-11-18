@@ -464,11 +464,10 @@ const digestBracket = ({bracket, playoffRecords, playoffRounds, matchupDifferent
 		const matchupWeek = [];
 
 		for(let matchups of bracket[i]) {
-			if(consolation) {
-				// consolation matchups are nested within an additional array, we need to flatten them before proceeding
-				matchups.flat();
-			}
-			for(const matchup of matchups) {
+			// Consolation rounds contain an extra array of matchups; iterate
+			// actual team entries rather than skipping nested pairs.
+			const teams = consolation ? matchups.flat() : matchups;
+			for(const matchup of teams) {
 				if(matchup.r) {
 					const newMatchup = {...matchup}
 					const points = sumCompletedPlayoffPoints(newMatchup.points);
