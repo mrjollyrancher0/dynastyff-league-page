@@ -20,3 +20,5 @@ jobs:
         run: node --test tests/recordsIntegrity.test.js
       - name: SvelteKit production build
         run: npm run build
+      - name: Independently audit Sleeper scoring history
+        run: node scripts/auditSleeperRecords.mjs
