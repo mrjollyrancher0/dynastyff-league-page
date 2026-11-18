@@ -80,7 +80,7 @@ Records.prototype.confirmRosterRecord = function(rosterID) {
  * @param {number} recordsData.pOGames
  * @param {number} recordsData.byes
  */
-Records.prototype.updateManagerRecord = function(managers, {rosterID, year, wins, losses, ties, fptsPerGame, fptsFor, fptsAgainst, potentialPoints, pOGames, byes}) {
+Records.prototype.updateManagerRecord = function(managers, {rosterID, year, wins, losses, ties, fptsPerGame, fptsFor, fptsAgainst, potentialPoints, pOGames, byes, playoffAppearance = false}) {
     // check that a roster record has already been started for a given roster ID
     for(const managerID of managers) {
         this.confirmManagerRecord(managerID);
@@ -94,7 +94,7 @@ Records.prototype.updateManagerRecord = function(managers, {rosterID, year, wins
         this.leagueManagerRecords[managerID].potentialPoints += potentialPoints;
         this.leagueManagerRecords[managerID].pOGames += pOGames;
         this.leagueManagerRecords[managerID].byes += byes;
-        this.leagueManagerRecords[managerID].playoffAppearances ++;
+        if (playoffAppearance) this.leagueManagerRecords[managerID].playoffAppearances++;
     }
     
     this.confirmRosterRecord(rosterID);
