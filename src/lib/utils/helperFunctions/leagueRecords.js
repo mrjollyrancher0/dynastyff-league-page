@@ -16,19 +16,27 @@ import { browser } from '$app/environment';
  * @returns {Object} { allTimeBiggestBlowouts, allTimeClosestMatchups, leastSeasonLongPoints, mostSeasonLongPoints, leagueWeekLows, leagueWeekHighs, seasonWeekRecords, leagueManagerRecords, currentYear, lastYear}
  */
 export const getLeagueRecords = async (refresh = false) => {
-	// records temporarily cached for an individual session
-	if(get(records).leagueWeekHighs) {
-		return get(records);
+	// Bump the version whenever calculation rules change to discard obsolete records.
+	const cacheKey = 'records:v2:' + leagueID;
+	const cacheMaxAge = 15 * 60 * 1000;
+	const memoryRecords = get(records);
+	if (!refresh && memoryRecords?.regularSeasonData && memoryRecords?.playoffData
+		&& Number.isFinite(memoryRecords.generatedAt)
+		&& Date.now() - memoryRecords.generatedAt < cacheMaxAge) {
+		return memoryRecords;
 	}
 
-	// if this isn't a refresh data call, check if there are already
-	// transactions stored in localStorage (long term)
-	if(!refresh && browser) {
-		let localRecords = await JSON.parse(localStorage.getItem("records"));
-		// check if transactions have been saved to localStorage before
-		if(localRecords && localRecords.playoffData) {
-			localRecords.stale = true;
-			return localRecords;
+	if (!refresh && browser) {
+		try {
+			const cached = JSON.parse(localStorage.getItem(cacheKey));
+			if (cached?.regularSeasonData && cached?.playoffData
+				&& Number.isFinite(cached.generatedAt)
+				&& Date.now() - cached.generatedAt < cacheMaxAge) {
+				records.set(cached);
+				return cached;
+			}
+		} catch (error) {
+			console.warn('Ignoring invalid cached records', error);
 		}
 	}
 
@@ -44,6 +52,7 @@ export const getLeagueRecords = async (refresh = false) => {
 	// initiate current season to be your current
 	// league page leagueID
 	let curSeason = leagueID;
+	const visitedLeagues = new Set();
 
 	// currentYear will eventually be assigned as the most recent year
 	// that has record information (current season if past week 1,
@@ -64,6 +73,10 @@ export const getLeagueRecords = async (refresh = false) => {
 
 	// loop through each season until the previous_league_id becomes null (or in some cases 0)
 	while(curSeason && curSeason != 0) {
+		if (visitedLeagues.has(String(curSeason))) {
+			throw new Error('Circular Sleeper season history at league ' + curSeason);
+		}
+		visitedLeagues.add(String(curSeason));
 		const [rosterRes, leagueData] = await waitForAll(
 			getLeagueRosters(curSeason),
 			getLeagueData(curSeason),
@@ -90,7 +103,7 @@ export const getLeagueRecords = async (refresh = false) => {
 			playoffRecords = pS; // update the regular season records
 		}
 
-		lastYear = year;
+		if (year) lastYear = year;
 
 		if(!currentYear && year) {
 			currentYear = year;
@@ -108,11 +121,11 @@ export const getLeagueRecords = async (refresh = false) => {
 	const regularSeasonData = regularSeason.returnRecords()
 	const playoffData = playoffRecords.returnRecords()
 
-	const recordsData = {regularSeasonData, playoffData};
+	const recordsData = {regularSeasonData, playoffData, generatedAt: Date.now()};
 
     if(browser) {
         // update localStorage
-        localStorage.setItem("records", JSON.stringify(recordsData));
+        localStorage.setItem(cacheKey, JSON.stringify(recordsData));
     
         records.update(() => recordsData);
     }
@@ -301,9 +314,14 @@ const processMatchups = ({matchupWeek, seasonPointsRecord, record, startWeek, ma
             mID = `PS:${m}`
         }
         
+        // Missing scores are not eligible for single-week record rankings.
+        const points = Number(matchup.points);
+        if (matchup.points == null || !Number.isFinite(points)) continue;
+        if (points === 0 && !Array.isArray(matchup.starters_points) && !matchup.m) continue;
+
         const entry = {
             rosterID,
-            fpts: matchup.points,
+            fpts: points,
             week: startWeek,
             year,
         }
@@ -397,6 +415,17 @@ const processPlayoffs = async ({curSeason, playoffRecords, year, week, rosters})
 	playoffRecords = consolationBracket.playoffRecords;
 	matchupDifferentials = consolationBracket.matchupDifferentials;
 
+	// A playoff appearance means entering the championship bracket,
+	// not playing a consolation-only matchup.
+	const playoffEntrants = new Set();
+	for (const round of champs.bracket) {
+		for (const pairing of round) {
+			for (const team of pairing) {
+				if (team.roster_id != null) playoffEntrants.add(String(team.roster_id));
+			}
+		}
+	}
+
 	for(const rosterID in postSeasonData) {
 		const pSD = postSeasonData[rosterID];
 		const fptsPerGame = round(pSD.fptsFor / (pSD.wins + pSD.losses + pSD.ties));
@@ -414,7 +443,7 @@ const processPlayoffs = async ({curSeason, playoffRecords, year, week, rosters})
 
 		// update the manager records for this roster ID
         const managers = getManagers(rosters[rosterID]);
-		playoffRecords.updateManagerRecord(managers, pSD);
+		playoffRecords.updateManagerRecord(managers, { ...pSD, playoffAppearance: playoffEntrants.has(String(rosterID)) });
 	}
 
 	// sort matchup differentials
