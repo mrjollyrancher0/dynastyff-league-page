@@ -1,0 +1,24 @@
+name: Records integrity checks
+
+on:
+  pull_request:
+  push:
+    branches:
+      - fix/records-data-integrity-2026
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Records regression tests
+        run: node --test tests/recordsIntegrity.test.js
+      - name: SvelteKit production build
+        run: npm run build
+      - name: Independently audit Sleeper scoring history
+        run: node scripts/auditSleeperRecords.mjs
